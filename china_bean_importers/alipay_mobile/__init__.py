@@ -73,6 +73,9 @@ class Importer(CsvImporter):
                 expense = None
                 # determine direction
                 if direction == "支出":
+                    if status == "交易关闭":
+                        # skip closed transactions
+                        continue
                     expense = True
                 elif direction == "收入":
                     expense = False
@@ -92,6 +95,9 @@ class Importer(CsvImporter):
                         expense = False
                     if narration == "余额宝-单次转入":
                         expense = True
+                    if status == "交易关闭" and method == "":
+                        # skip closed transactions with no payment method (e.g. unpaid orders)
+                        continue
                     if expense is None:
                         # if '交易关闭' in status or '解冻成功' in status:
                         my_warn(
@@ -155,10 +161,16 @@ class Importer(CsvImporter):
                         account2 = unknown_account(self.config, expense)
 
                 if "&" in method:
-                    my_warn(
-                        f"Multiple payment methods found, please confirm", lineno, row
-                    )
-                    tags.add("confirmation-needed")
+                    # 红包/立减金/优惠作为折扣抵扣，不影响记账账户，静默处理
+                    non_discount = [
+                        m.strip() for m in method.split("&")
+                        if not any(kw in m for kw in ["红包", "立减金", "超划算", "碰友日立减"])
+                    ]
+                    if len(non_discount) > 1:
+                        my_warn(
+                            f"Multiple payment methods found, please confirm", lineno, row
+                        )
+                        tags.add("confirmation-needed")
 
                 # check status and add warning if needed
                 if "成功" not in status:
