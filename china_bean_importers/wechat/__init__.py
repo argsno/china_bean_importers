@@ -14,13 +14,13 @@ class Importer(CsvOrXlsxImporter):
         self.match_keywords = ["微信支付账单明细"]
         self.file_account_name = "wechat"
 
-    def parse_metadata(self, file):
+    def parse_metadata(self, filepath):
         if m := re.search(r"起始时间：\[([0-9]+-[0-9]+-[0-9]+)", self.full_content):
             self.start = parse(m[1])
         if m := re.search(r"终止时间：\[([0-9]+-[0-9]+-[0-9]+)", self.full_content):
             self.end = parse(m[1])
 
-    def extract(self, file, existing_entries=None):
+    def extract(self, filepath, existing=None):
         entries = []
         begin = False
 
@@ -33,7 +33,7 @@ class Importer(CsvOrXlsxImporter):
                 begin = True
             elif begin:
                 # parse data line
-                metadata: dict = data.new_metadata(file.name, lineno)
+                metadata: dict = data.new_metadata(filepath, lineno)
                 tags = set()
 
                 # parse some basic info
@@ -103,7 +103,8 @@ class Importer(CsvOrXlsxImporter):
                     account1 = source_config["lingqiantong_account"]
                 elif method == "零钱通" and status in [
                     "对方已收钱",
-                    "已转账"
+                    "已转账",
+                    "支付成功",
                 ]:
                     # 零钱通转账
                     account1 = source_config["lingqiantong_account"]

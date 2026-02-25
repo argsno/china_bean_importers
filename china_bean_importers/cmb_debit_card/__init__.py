@@ -9,7 +9,7 @@ from china_bean_importers.importer import PdfImporter
 PAYEE_RE = re.compile(r"(\D*)(\d+)")
 
 
-def gen_txn(config, file, parts, lineno, flag, card_acc, real_name):
+def gen_txn(config, filepath, parts, lineno, flag, card_acc, real_name):
     # HACK: handle `Customer Type` being a separate row
     if parts == ['Customer Type']:
         return None
@@ -32,7 +32,7 @@ def gen_txn(config, file, parts, lineno, flag, card_acc, real_name):
     # parts[3]: 余额
     balance = amount.Amount(D(parts[3]), "CNY")
 
-    metadata = data.new_metadata(file.name, lineno)
+    metadata = data.new_metadata(filepath, lineno)
     metadata["balance"] = str(balance)
     tags = set()
 
@@ -100,7 +100,7 @@ class Importer(PdfImporter):
         )  # match page number like "1/5" or "合并统计"
         self.content_end_keyword = "————"  # match last page
 
-    def parse_metadata(self, file):
+    def parse_metadata(self, filepath):
         match = re.search(r"名：(\w+)", self.full_content)
         assert match
         self.real_name = match[1]
@@ -111,7 +111,7 @@ class Importer(PdfImporter):
         self.card_acc = find_account_by_card_number(self.config, card_number[-4:])
         my_assert(self.card_acc, f"Unknown card number {card_number}", 0, 0)
 
-    def generate_tx(self, row, lineno, file):
+    def generate_tx(self, row, lineno, filepath):
         return gen_txn(
-            self.config, file, row, lineno, self.FLAG, self.card_acc, self.real_name
+            self.config, filepath, row, lineno, self.FLAG, self.card_acc, self.real_name
         )

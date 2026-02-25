@@ -98,10 +98,14 @@ def open_pdf(config, name):
 def find_account_by_card_number(config, card_number):
     if isinstance(card_number, int):
         card_number = str(card_number)
-    for prefix, accounts in config["card_accounts"].items():
-        for bank, numbers in accounts.items():
-            if card_number in numbers:
-                return f"{prefix}:{bank}:{card_number}"
+    for key, value in config["card_accounts"].items():
+        if isinstance(value, str):
+            if key == card_number:
+                return value
+        elif isinstance(value, dict):
+            for bank, numbers in value.items():
+                if card_number in numbers:
+                    return f"{key}:{bank}:{card_number}"
 
     return None
 

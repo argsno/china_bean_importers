@@ -1,6 +1,6 @@
 from dateutil.parser import parse
-from beancount.ingest import importer
-from beancount.core import data, amount
+from beangulp import Importer as BaseImporter
+from beancount.core import data, amount, flags
 from beancount.core.number import D
 import csv
 import re
@@ -12,31 +12,31 @@ FOREIGN_CURR_TX = re.compile(
 )
 
 
-class Importer(importer.ImporterProtocol):
+class Importer(BaseImporter):
 
     def __init__(self, config) -> None:
-        super().__init__()
         self.config = config
         self.match_keywords = ["卡号末四位", "交易日"]
+        self.FLAG = flags.FLAG_OKAY
 
-    def identify(self, file):
-        if file.name.upper().endswith(".CSV"):
+    def identify(self, filepath):
+        if filepath.upper().endswith(".CSV"):
             self.type = "csv"
             try:
-                with open(file.name, "r", encoding="utf-8") as f:
+                with open(filepath, "r", encoding="utf-8") as f:
                     self.full_content = f.read()
                     self.content = []
                     for ln in self.full_content.splitlines():
                         if (l := ln.strip()) != "":
                             self.content.append(l)
-                    if "csv" in file.name and all(
+                    if "csv" in filepath and all(
                         map(lambda c: c in self.full_content, self.match_keywords)
                     ):
                         return True
                 return False
             except:
                 return False
-        elif file.name.upper().endswith(".EML"):
+        elif filepath.upper().endswith(".EML"):
             self.type = "email"
             from bs4 import BeautifulSoup
             import email
@@ -46,7 +46,7 @@ class Importer(importer.ImporterProtocol):
 
             try:
                 raw_email = email.message_from_file(
-                    open(file.name), policy=policy.default
+                    open(filepath), policy=policy.default
                 )
                 # weird encapsulation
                 raw_body_html = unescape(
@@ -66,25 +66,24 @@ class Importer(importer.ImporterProtocol):
             except BaseException:
                 return False
 
-    def file_account(self, file):
+    def account(self, filepath):
         return "cmbc_credit_card"
 
-    def file_date(self, file):
+    def date(self, filepath):
         if self.type == "csv":
             if len(self.content) > 1:
                 return parse(self.content[1].split(",")[1])
         elif self.type == "email":
             return self.stmt_date
-        return super().file_date(file)
+        return None
 
-    def extract(self, file, existing_entries=None):
+    def extract(self, filepath, existing=None):
 
-        # generate beancount posting entries
         tx = list(
             filter(
                 None,
                 map(
-                    lambda e: self.generate_tx(e[1], e[0], file),
+                    lambda e: self.generate_tx(e[1], e[0], filepath),
                     enumerate(self.extract_text_entries()),
                 ),
             )
@@ -158,12 +157,12 @@ class Importer(importer.ImporterProtocol):
 
         return entries
 
-    def generate_tx(self, row: list, lineno: int, file):
+    def generate_tx(self, row: list, lineno: int, filepath):
         #   0      1        2       3    4    5
         # 交易日, 记账日, 卡号末四位, 摘要, 金额, 货币
 
         # parse data line
-        metadata: dict = data.new_metadata(file.name, lineno)
+        metadata: dict = data.new_metadata(filepath, lineno)
         tags = set()
 
         # parse some basic info

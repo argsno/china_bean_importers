@@ -1,13 +1,13 @@
 from dateutil.parser import parse
-from beancount.ingest import importer
+from beangulp import Importer
+from beancount.core import flags
 from datetime import datetime
 
 from china_bean_importers.common import *
 
 
-class BaseImporter(importer.ImporterProtocol):
+class BaseImporter(Importer):
     def __init__(self, config) -> None:
-        super().__init__()
         self.config: dict = config
         self.match_keywords: list[str] = None
         self.file_account_name: str = None
@@ -16,43 +16,43 @@ class BaseImporter(importer.ImporterProtocol):
         self.start: datetime = None
         self.end: datetime = None
         self.filetype: str = None
+        self.FLAG = flags.FLAG_OKAY
 
-    def identify(self, file):
-        raise "Unimplemented"
+    def identify(self, filepath):
+        raise NotImplementedError
 
-    def parse_metadata(self, file):
-        raise "Unimplemented"
+    def parse_metadata(self, filepath):
+        raise NotImplementedError
 
-    def file_account(self, file):
+    def account(self, filepath):
         if self.file_account_name is None:
-            raise "file_account_name not set"
+            raise ValueError("file_account_name not set")
         return self.file_account_name
 
-    def file_date(self, file):
+    def date(self, filepath):
         return self.start
 
-    def file_name(self, file):
+    def filename(self, filepath):
         assert self.filetype is not None
         if self.end:
             return f"to.{self.end.date().isoformat()}.{self.filetype}"
 
-    # common methods for table-based import
-    def extract(self, file, existing_entries=None):
+    def extract(self, filepath, existing=None):
         return list(
             filter(
                 lambda x: x is not None,
                 [
-                    self.generate_tx(r, i, file)
+                    self.generate_tx(r, i, filepath)
                     for i, r in enumerate(self.extract_rows())
                 ],
             )
         )
 
     def extract_rows(self) -> list[list[str]]:
-        raise "Unimplemented"
+        raise NotImplementedError
 
-    def generate_tx(self, row: list[str], lineno: int, file):
-        raise "Unimplemented"
+    def generate_tx(self, row: list[str], lineno: int, filepath):
+        raise NotImplementedError
 
 
 class CsvImporter(BaseImporter):
@@ -61,20 +61,20 @@ class CsvImporter(BaseImporter):
         self.encoding: str = "utf-8"
         self.filetype = "csv"
 
-    def identify(self, file):
+    def identify(self, filepath):
         if self.match_keywords is None:
-            raise "match_keywords not set"
+            raise ValueError("match_keywords not set")
         try:
-            with open(file.name, "r", encoding=self.encoding) as f:
+            with open(filepath, "r", encoding=self.encoding) as f:
                 self.full_content = f.read()
                 self.content = []
                 for ln in self.full_content.splitlines():
                     if (l := ln.strip()) != "":
                         self.content.append(l)
-                if "csv" in file.name and all(
+                if "csv" in filepath and all(
                     map(lambda c: c in self.full_content, self.match_keywords)
                 ):
-                    self.parse_metadata(file)
+                    self.parse_metadata(filepath)
                     return True
         except BaseException:
             return False
@@ -85,11 +85,11 @@ class CsvOrXlsxImporter(BaseImporter):
         self.encoding: str = "utf-8"
         self.filetype = "csv"
 
-    def identify(self, file):
+    def identify(self, filepath):
         if self.match_keywords is None:
-            raise "match_keywords not set"
+            raise ValueError("match_keywords not set")
         try:
-            if file.name.endswith(".xlsx"):
+            if filepath.endswith(".xlsx"):
                 try:
                     import pandas as pd
                     import openpyxl
@@ -97,12 +97,12 @@ class CsvOrXlsxImporter(BaseImporter):
                     print(f"WARNING: missing pandas or openpyxl, cannot parse xlsx\n", file=sys.stderr)
                     return False
 
-                df = pd.read_excel(file.name)
+                df = pd.read_excel(filepath)
                 csv = df.to_csv(index=False)
                 self.filetype = "xlsx"
                 self.full_content = csv
-            elif file.name.endswith(".csv"):
-                with open(file.name, "r", encoding=self.encoding) as f:
+            elif filepath.endswith(".csv"):
+                with open(filepath, "r", encoding=self.encoding) as f:
                     self.full_content = f.read()
             else:
                 return False
@@ -113,7 +113,7 @@ class CsvOrXlsxImporter(BaseImporter):
             if all(
                 map(lambda c: c in self.full_content, self.match_keywords)
             ):
-                self.parse_metadata(file)
+                self.parse_metadata(filepath)
                 return True
         except BaseException:
             return False
@@ -131,14 +131,14 @@ class PdfImporter(BaseImporter):
         self.content_end_keyword: str = None
         self.content_end_regex = None
 
-    def identify(self, file):
+    def identify(self, filepath):
         if self.match_keywords is None:
-            raise "match_keywords not set"
+            raise ValueError("match_keywords not set")
 
-        if "pdf" not in file.name.lower():
+        if "pdf" not in filepath.lower():
             return False
 
-        doc = open_pdf(self.config, file.name)
+        doc = open_pdf(self.config, filepath)
         if doc is None:
             return False
 
@@ -149,7 +149,7 @@ class PdfImporter(BaseImporter):
             self.full_content += page.get_text("text")
 
         if all(map(lambda c: c in self.full_content, self.match_keywords)):
-            self.parse_metadata(file)
+            self.parse_metadata(filepath)
             return True
 
     def extract_rows(self):
@@ -222,14 +222,14 @@ class PdfTableImporter(BaseImporter):
         self.header_first_cell: str = None
         self.header_first_cell_regex = None
 
-    def identify(self, file):
+    def identify(self, filepath):
         if self.match_keywords is None:
-            raise "match_keywords not set"
+            raise ValueError("match_keywords not set")
 
-        if "pdf" not in file.name.lower():
+        if "pdf" not in filepath.lower():
             return False
 
-        doc = open_pdf(self.config, file.name)
+        doc = open_pdf(self.config, filepath)
         if doc is None:
             return False
         doc = self.preprocess_doc(doc)
@@ -243,7 +243,7 @@ class PdfTableImporter(BaseImporter):
 
         if all(map(lambda c: c in self.full_content, self.match_keywords)):
             self.populate_rows(doc)
-            self.parse_metadata(file)
+            self.parse_metadata(filepath)
             return True
         else:
             return False

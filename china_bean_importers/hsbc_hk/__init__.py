@@ -21,23 +21,23 @@ class Importer(CsvImporter):
         self.match_keywords = ["Billing currency", "Description"]
         self.file_account_name = "hsbc_hk"
 
-    def identify(self, file):
-        acc_name = Path(file.name).stem.split("_")[0]
+    def identify(self, filepath):
+        acc_name = Path(filepath).stem.split("_")[0]
         if mapping := self.config["importers"]["hsbc_hk"].get("account_mapping"):
             if acc := mapping.get(acc_name):
                 self.account1 = acc
             else:
                 my_warn(
                     f"Account mapping not found for {acc_name}, skipping...",
-                    file.name,
+                    filepath,
                     "",
                 )
                 return False
         else:
             raise ValueError("Account mapping not set in importer config")
-        return super().identify(file)
+        return super().identify(filepath)
 
-    def parse_metadata(self, file):
+    def parse_metadata(self, filepath):
         self.reader = csv.DictReader(self.content)
         self.parsed_content = list(self.reader)
         if "Transaction date" in self.reader.fieldnames:
@@ -58,14 +58,14 @@ class Importer(CsvImporter):
         self.start = self.parsed_content[0]["D"]
         self.end = self.parsed_content[-1]["D"]
 
-    def extract(self, file, existing_entries=None):
+    def extract(self, filepath, existing=None):
         entries = []
         use_cnh = self.config["importers"]["hsbc_hk"].get("use_cnh", False)
 
         for c in self.parsed_content:
 
             # parse data line
-            metadata: dict = data.new_metadata(file.name, c["line_no"])
+            metadata: dict = data.new_metadata(filepath, c["line_no"])
             tags = set()
 
             line_no = c["line_no"]

@@ -15,13 +15,13 @@ class Importer(CsvImporter):
         self.match_keywords = ["支付宝", "电子客户回单"]
         self.file_account_name = "alipay_mobile"
 
-    def parse_metadata(self, file):
+    def parse_metadata(self, filepath):
         if m := re.search(r"起始时间：\[([0-9 :-]+)\]", self.full_content):
             self.start = parse(m[1])
         if m := re.search(r"终止时间：\[([0-9 :-]+)\]", self.full_content):
             self.end = parse(m[1])
 
-    def extract(self, file, existing_entries=None):
+    def extract(self, filepath, existing=None):
         entries = []
         begin = False
 
@@ -40,7 +40,7 @@ class Importer(CsvImporter):
                 break
             elif begin:
                 # parse data line
-                metadata: dict = data.new_metadata(file.name, lineno)
+                metadata: dict = data.new_metadata(filepath, lineno)
                 tags = set()
 
                 # parse some basic info

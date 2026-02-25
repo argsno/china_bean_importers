@@ -7,7 +7,7 @@ from china_bean_importers.common import *
 from china_bean_importers.importer import PdfTableImporter
 
 
-def gen_txn(config, file, parts, lineno, flag, card_acc, real_name):
+def gen_txn(config, filepath, parts, lineno, flag, card_acc, real_name):
     my_assert(len(parts) == 13, f"Cannot parse line in PDF", lineno, parts)
     # print(parts, file=sys.stderr)
     # 0         1     2     3     4     5     6     7     8              9     10        11        12
@@ -47,7 +47,7 @@ def gen_txn(config, file, parts, lineno, flag, card_acc, real_name):
         else:
             print(f"Income kept in record", file=sys.stderr)
 
-    metadata = data.new_metadata(file.name, lineno)
+    metadata = data.new_metadata(filepath, lineno)
     metadata["time"] = time_str
     metadata["deposit_type"] = parts[2]
     metadata["source"] = parts[12]
@@ -114,7 +114,7 @@ class Importer(PdfTableImporter):
         self.vertical_lines = None
         self.header_first_cell = "交易日期"
 
-    def parse_metadata(self, file):
+    def parse_metadata(self, filepath):
         match = re.search(
             r"起止日期：\s*([0-9]+-[0-9]+-[0-9]+)\s*—\s*([0-9]+-[0-9]+-[0-9]+)",
             self.full_content,
@@ -133,7 +133,7 @@ class Importer(PdfTableImporter):
         self.card_acc = find_account_by_card_number(self.config, card_number[-4:])
         my_assert(self.card_acc, f"Unknown card number {card_number}", 0, 0)
 
-    def generate_tx(self, row, lineno, file):
+    def generate_tx(self, row, lineno, filepath):
         return gen_txn(
-            self.config, file, row, lineno, self.FLAG, self.card_acc, self.real_name
+            self.config, filepath, row, lineno, self.FLAG, self.card_acc, self.real_name
         )

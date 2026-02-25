@@ -1,5 +1,6 @@
-from beancount.ingest.extract import DUPLICATE_META
 from collections import defaultdict
+
+DUPLICATE_META = "__duplicate__"
 
 
 def find_wechat_family(new_entries_list, existing_entries):

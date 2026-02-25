@@ -14,14 +14,14 @@ class Importer(CsvImporter):
         self.file_account_name = "thu_ecard"
         self.all_ids = set()
 
-    def parse_metadata(self, file):
+    def parse_metadata(self, filepath):
         if len(self.content) > 2:
             if m := common_date_pattern.search(self.content[1]):
                 self.end = parse(m[1])
             if m := common_date_pattern.search(self.content[-1]):
                 self.start = parse(m[1])
 
-    def extract(self, file, existing_entries=None):
+    def extract(self, filepath, existing=None):
         entries = []
 
         def to_yuan(fen) -> str:
@@ -55,7 +55,7 @@ class Importer(CsvImporter):
                 self.all_ids.add(pos_journo)
 
             # parse data line
-            metadata: dict = data.new_metadata(file.name, lineno)
+            metadata: dict = data.new_metadata(filepath, lineno)
             tags = set()
 
             # parse some basic info

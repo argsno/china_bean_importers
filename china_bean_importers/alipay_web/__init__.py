@@ -1,6 +1,6 @@
 from dateutil.parser import parse
-from beancount.ingest import importer
-from beancount.core import data, amount
+from beangulp import Importer as BaseImporter
+from beancount.core import data, amount, flags
 from beancount.core.number import D
 import csv
 import re
@@ -8,39 +8,45 @@ import re
 from china_bean_importers.common import *
 
 
-class Importer(importer.ImporterProtocol):
+class Importer(BaseImporter):
     def __init__(self, config) -> None:
-        super().__init__()
         self.config = config
+        self.FLAG = flags.FLAG_OKAY
 
-    def identify(self, file):
-        return "txt" in file.name and "支付宝交易记录明细查询" in file.head()
+    def identify(self, filepath):
+        try:
+            if "txt" not in filepath:
+                return False
+            with open(filepath, "r", encoding="gbk") as f:
+                head = f.read(1024)
+            return "支付宝交易记录明细查询" in head
+        except BaseException:
+            return False
 
-    def file_account(self, file):
+    def account(self, filepath):
         return "alipay_web"
 
-    def file_date(self, file):
-        with open(file.name, "r", encoding="gbk") as f:
+    def date(self, filepath):
+        with open(filepath, "r", encoding="gbk") as f:
             for row in csv.reader(f):
                 m = re.search(r"起始日期:\[([0-9 :-]+)\]", row[0])
                 if m:
-                    date = parse(m[1])
-                    return date
-        return super().file_date(file)
+                    return parse(m[1])
+        return None
 
-    def file_name(self, file):
-        with open(file.name, "r", encoding="gbk") as f:
+    def filename(self, filepath):
+        with open(filepath, "r", encoding="gbk") as f:
             for row in csv.reader(f):
                 m = re.search(r"终止日期:\[([0-9 :-]+)\]", row[0])
                 if m:
-                    date = parse(m[1])
-                    return "to." + date.date().isoformat() + ".txt"
-        return super().file_name(file)
+                    dt = parse(m[1])
+                    return "to." + dt.date().isoformat() + ".txt"
+        return None
 
-    def extract(self, file, existing_entries=None):
+    def extract(self, filepath, existing=None):
         entries = []
         begin = False
-        with open(file.name, "r", encoding="gbk") as f:
+        with open(filepath, "r", encoding="gbk") as f:
             for lineno, row in enumerate(csv.reader(f)):
                 row = [col.strip() for col in row]
                 if row[0] == "交易号" and row[1] == "商家订单号":
@@ -48,7 +54,7 @@ class Importer(importer.ImporterProtocol):
                 elif begin and row[0].startswith("------"):
                     break
                 elif begin:
-                    metadata = data.new_metadata(file.name, lineno)
+                    metadata = data.new_metadata(filepath, lineno)
                     date = parse(row[2]).date()
                     units = amount.Amount(D(row[9]), "CNY")
                     payee = row[7]

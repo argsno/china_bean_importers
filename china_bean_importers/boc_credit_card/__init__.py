@@ -1,6 +1,6 @@
 from dateutil.parser import parse
-from beancount.ingest import importer
-from beancount.core import data, amount
+from beangulp import Importer as BaseImporter
+from beancount.core import data, amount, flags
 from beancount.core.number import D
 
 import re
@@ -9,11 +9,11 @@ import sys
 from china_bean_importers.common import *
 
 
-class Importer(importer.ImporterProtocol):
+class Importer(BaseImporter):
     def __init__(self, config) -> None:
-        super().__init__()
         self.config = config
         self.rate = None
+        self.FLAG = flags.FLAG_OKAY
 
     def get_config(self, cfg, account, narration):
         if "importers" not in self.config:
@@ -35,21 +35,21 @@ class Importer(importer.ImporterProtocol):
     def extract_repayment_rate(self, account, narration) -> bool:
         return self.get_config("extract_repayment_rate", account, narration)
 
-    def identify(self, file):
-        if file.name.upper().endswith(".PDF"):
+    def identify(self, filepath):
+        if filepath.upper().endswith(".PDF"):
             self.type = "pdf"
 
             import fitz
-            if "中国银行信用卡" in file.name:
-                self.doc = fitz.open(file.name)
+            if "中国银行信用卡" in filepath:
+                self.doc = fitz.open(filepath)
                 return True
-            elif "中国银行" in file.name:
-                doc = fitz.open(file.name)
+            elif "中国银行" in filepath:
+                doc = fitz.open(filepath)
                 if "信用卡账单" in doc[0].get_text():
                     self.doc = doc
                     return True
             return False
-        elif file.name.upper().endswith(".EML"):
+        elif filepath.upper().endswith(".EML"):
             self.type = "email"
             from bs4 import BeautifulSoup
             import email
@@ -58,7 +58,7 @@ class Importer(importer.ImporterProtocol):
 
             try:
                 raw_email = email.message_from_file(
-                    open(file.name), policy=policy.default
+                    open(filepath), policy=policy.default
                 )
                 raw_body_html = quopri.decodestring(
                     raw_email.get_body().get_payload()
@@ -68,10 +68,10 @@ class Importer(importer.ImporterProtocol):
             except BaseException:
                 return False
 
-    def file_account(self, file):
+    def account(self, filepath):
         return "boc_credit_card"
 
-    def file_date(self, file):
+    def date(self, filepath):
         if self.type == "pdf":
             begin = False
             page = self.doc[0]
@@ -90,10 +90,9 @@ class Importer(importer.ImporterProtocol):
                         break
         elif self.type == "email":
             info_table = self.body.select("table.bill_sum_detail_table")[0]
-            # 到期还款日 账单日 本期人民币欠款总计 本期外币欠款总计
             bill_date = info_table.find_all("td")[1].text
             return parse(bill_date)
-        return super().file_date(file)
+        return None
 
     def extract_text_entries(self):
         card_num_regex = re.compile(r".*\(卡号(:|：)(\d+)\)")
@@ -237,15 +236,13 @@ class Importer(importer.ImporterProtocol):
 
         return text_entries
 
-    def extract(self, file, existing_entries=None):
+    def extract(self, filepath, existing=None):
 
         # generate beancount posting entries
         entries = []
 
         last_account = None
         for lineno, entry in enumerate(self.extract_text_entries()):
-            # print(entry, file=sys.stderr)
-            # 货币 交易日 银行记账日 卡号后四位 交易描述 存入 支出
             (
                 currency,
                 trans_date,
@@ -273,7 +270,7 @@ class Importer(importer.ImporterProtocol):
                 narration = orig_narration
                 payee = None
 
-            metadata = data.new_metadata(file.name, lineno)
+            metadata = data.new_metadata(filepath, lineno)
             tags = set()
 
             if card_number == "":

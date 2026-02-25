@@ -15,7 +15,7 @@ class Importer(CsvImporter):
         self.match_keywords = ["中国建设银行", "交易明细"]
         self.file_account_name = "ccb_debit_card"
 
-    def parse_metadata(self, file):
+    def parse_metadata(self, filepath):
         if m := re.search("起始日期:(\\d+)", self.full_content):
             self.start = parse(m[1])
         if m := re.search("结束日期:(\\d+)", self.full_content):
@@ -26,7 +26,7 @@ class Importer(CsvImporter):
         self.card_acc = find_account_by_card_number(self.config, card_number[-4:])
         my_assert(self.card_acc, f"Unknown card number {card_number}", 0, 0)
 
-    def extract(self, file, existing_entries=None):
+    def extract(self, filepath, existing=None):
         entries = []
         begin = False
 
@@ -42,7 +42,7 @@ class Importer(CsvImporter):
                 begin = True
             elif begin:
                 # parse data line
-                metadata: dict = data.new_metadata(file.name, lineno)
+                metadata: dict = data.new_metadata(filepath, lineno)
                 tags = set()
 
                 # parse some basic info

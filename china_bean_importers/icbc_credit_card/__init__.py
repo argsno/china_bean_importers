@@ -1,6 +1,6 @@
 from beancount.core.number import D
-from beancount.core import data, amount
-from beancount.ingest import importer
+from beancount.core import data, amount, flags
+from beangulp import Importer as BaseImporter
 from dateutil.parser import parse
 import re
 
@@ -53,15 +53,15 @@ def to_txn_object(values: list[str], header_index: dict[str, int]) -> dict[str, 
     return ret
 
 
-class Importer(importer.ImporterProtocol):
+class Importer(BaseImporter):
 
     def __init__(self, config) -> None:
-        super().__init__()
         self.config = config
         self.match_keywords = [EMAIL_KEYWORD]
+        self.FLAG = flags.FLAG_OKAY
 
-    def identify(self, file):
-        if file.name.upper().endswith(".EML"):
+    def identify(self, filepath):
+        if filepath.upper().endswith(".EML"):
             self.type = "email"
 
             from bs4 import BeautifulSoup
@@ -69,7 +69,7 @@ class Importer(importer.ImporterProtocol):
             from email.parser import Parser
             import quopri
 
-            with open(file.name, "r", encoding="utf-8") as f:
+            with open(filepath, "r", encoding="utf-8") as f:
                 raw_email = Parser(policy=policy.default).parse(
                     f)
                 raw_body_html = quopri.decodestring(
@@ -84,17 +84,16 @@ class Importer(importer.ImporterProtocol):
                 return is_workable
         return False
 
-    def file_account(self, file):
+    def account(self, filepath):
         return "icbc_credit_card"
 
-    def file_date(self, file):
+    def date(self, filepath):
         if self.type == "email":
             return self.stmt_date
-        return super().file_date(file)
+        return None
 
-    # common methods for table-based import
-    def extract(self, file, existing_entries=None):
-        return list(self.process_outer(self.body, file.name))
+    def extract(self, filepath, existing=None):
+        return list(self.process_outer(self.body, filepath))
 
     def process_inner(self, table, file_name):
         headers_processed = False

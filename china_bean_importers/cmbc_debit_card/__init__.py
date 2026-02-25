@@ -7,7 +7,7 @@ from china_bean_importers.common import *
 from china_bean_importers.importer import PdfImporter
 
 
-def gen_txn(config, file, parts, lineno, flag, card_acc):
+def gen_txn(config, filepath, parts, lineno, flag, card_acc):
     # my_assert(len(parts) >= 10 or len(parts) == 5, f'Cannot parse line in PDF', lineno, parts)
     #    0       1       2       3      4        5        6      7        8         9           10
     # 凭证类型, 凭证号码, 交易时间, 摘要, 交易金额, 账户余额, 现转标志, 交易渠道, 交易机构, 对方户名/账号, 对方行名
@@ -40,7 +40,7 @@ def gen_txn(config, file, parts, lineno, flag, card_acc):
         else:
             print(f"Income kept in record", file=sys.stderr)
 
-    metadata = data.new_metadata(file.name, lineno)
+    metadata = data.new_metadata(filepath, lineno)
     metadata["time"] = full_time.time().isoformat()
     if parts[7] != "":
         metadata["source"] = parts[7]
@@ -107,7 +107,7 @@ class Importer(PdfImporter):
         self.content_start_keyword = "对方行名"
         self.content_end_keyword = "______________"
 
-    def parse_metadata(self, file):
+    def parse_metadata(self, filepath):
         match = re.search(
             r"起止日期:([0-9]{4}\/[0-9]{2}\/[0-9]{2}).*([0-9]{4}\/[0-9]{2}\/[0-9]{2})",
             self.full_content,
@@ -126,5 +126,5 @@ class Importer(PdfImporter):
         self.card_acc = find_account_by_card_number(self.config, card_number[-4:])
         my_assert(self.card_acc, f"Unknown card number {card_number}", 0, 0)
 
-    def generate_tx(self, row, lineno, file):
-        return gen_txn(self.config, file, row, lineno, self.FLAG, self.card_acc)
+    def generate_tx(self, row, lineno, filepath):
+        return gen_txn(self.config, filepath, row, lineno, self.FLAG, self.card_acc)
