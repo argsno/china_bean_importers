@@ -1,4 +1,5 @@
 from china_bean_importers import (
+    abc_credit_card,
     alipay_mobile,
     alipay_web,
     boc_credit_card,
@@ -10,11 +11,13 @@ from china_bean_importers import (
     icbc_credit_card,
     icbc_debit_card,
     hsbc_hk,
+    meituan,
     thu_ecard_old,
     wechat,
 )
 
 __all__ = [
+    "abc_credit_card",
     "alipay_mobile",
     "alipay_web",
     "boc_credit_card",
@@ -26,6 +29,7 @@ __all__ = [
     "icbc_credit_card",
     "icbc_debit_card",
     "hsbc_hk",
+    "meituan",
     "thu_ecard_old",
     "wechat",
 ]
